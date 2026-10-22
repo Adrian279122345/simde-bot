@@ -1,0 +1,10 @@
+{
+  "name": "simde-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "sim.de Unlimited on Demand Nachbuch-Bot",
+  "main": "bot.js",
+  "dependencies": {
+    "playwright": "1.48.2"
+  }
+}
