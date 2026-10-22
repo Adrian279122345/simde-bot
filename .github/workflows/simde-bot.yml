@@ -1,0 +1,28 @@
+name: sim.de Nachbuch-Bot
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # alle 30 Minuten (GitHub startet manchmal ein paar Minuten spaeter)
+  workflow_dispatch:          # "Run workflow"-Knopf zum Testen
+
+concurrency:
+  group: simde-bot
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    container:
+      image: mcr.microsoft.com/playwright:v1.48.2-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Abhaengigkeiten installieren
+        run: npm install --no-fund --no-audit
+      - name: Datenvolumen pruefen und ggf. nachbuchen
+        env:
+          SIMDE_USER: ${{ secrets.SIMDE_USER }}
+          SIMDE_PASS: ${{ secrets.SIMDE_PASS }}
+          SIMDE_NUMMER: ${{ secrets.SIMDE_NUMMER }}
+          HOME: /root
+        run: node bot.js --einmal
