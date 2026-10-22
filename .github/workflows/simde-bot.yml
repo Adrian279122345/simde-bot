@@ -2,7 +2,7 @@ name: sim.de Nachbuch-Bot
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # alle 30 Minuten (GitHub startet manchmal ein paar Minuten spaeter)
+    - cron: "*/5 * * * *"    # alle 5 Minuten (GitHub startet manchmal ein paar Minuten spaeter)
   workflow_dispatch:          # "Run workflow"-Knopf zum Testen
 
 concurrency:
