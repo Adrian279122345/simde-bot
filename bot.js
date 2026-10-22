@@ -145,7 +145,15 @@ async function nachbuchen(page) {
   if ((await knopf.count()) === 0) { log("Kein 'Buchen'-Knopf gefunden (vielleicht gerade nicht buchbar)."); return false; }
 
   await cookieBannerWegklicken(page);
-  await knopf.first().click({ timeout: 15000 });
+  try {
+    await knopf.first().click({ timeout: 8000 });
+  } catch (e) {
+    const html = await knopf.first().evaluate((el) => el.outerHTML.slice(0, 200)).catch(() => "?");
+    const zeile = await knopf.first().evaluate((el) => (el.closest("div, li, tr")?.innerText || "").replace(/\s+/g, " ").slice(0, 200)).catch(() => "");
+    log("Nachbuchen gerade nicht moeglich (sim.de laesst den Knopf noch nicht zu) – neuer Versuch beim naechsten Lauf.");
+    log("Info: " + zeile + " | " + html);
+    return false;
+  }
   await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(2500);
 
