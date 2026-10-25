@@ -186,6 +186,26 @@ async function nachbuchen(page) {
   return true;
 }
 
+// Nur Bescheid geben (sim.de verlangt beim Buchen ein Captcha -> Buchen macht der Nutzer selbst)
+async function benachrichtigen(page) {
+  let knopf = page.getByRole("link", { name: /^\s*Buchen\s*$/i });
+  if ((await knopf.count()) === 0) { log("Kein 'Buchen'-Knopf gefunden."); return false; }
+  const gesperrt = await knopf.first().evaluate((el) => el.hasAttribute("disabled") || el.classList.contains("disabled")).catch(() => true);
+  if (gesperrt) { log("Volumen fast leer, aber sim.de laesst noch nicht nachbuchen."); return false; }
+  const res = await fetch("https://ntfy.sh/" + process.env.SIMDE_NTFY, {
+    method: "POST",
+    headers: {
+      Title: "sim.de: Jetzt nachbuchen!",
+      Priority: "high",
+      Tags: "iphone",
+      Click: "https://service.sim.de/mytariff/invoice/showGprsDataUsage",
+    },
+    body: "Dein Datenvolumen ist leer. Tippen, um die 2 GB zu buchen.",
+  });
+  log("Benachrichtigung gesendet (" + res.status + ").");
+  return true;
+}
+
 async function einDurchlauf(c, testModus) {
   const browser = await chromium.launch({ headless: !c.sichtbar });
   const page = await browser.newPage({ locale: "de-DE" });
@@ -202,6 +222,7 @@ async function einDurchlauf(c, testModus) {
     log(`${v.verbraucht.toFixed(2)} von ${v.gesamt.toFixed(2)} GB verbraucht – noch ${rest.toFixed(2)} GB frei.`);
     if (rest < c.schwelle) {
       if (testModus) { log(`TEST: Wuerde jetzt nachbuchen (unter ${c.schwelle} GB). Es wurde NICHT gebucht.`); return false; }
+      if (process.env.SIMDE_NTFY) return await benachrichtigen(page);
       log("Wird knapp – buche 2 GB nach ...");
       return await nachbuchen(page);
     }
