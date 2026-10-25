@@ -139,6 +139,35 @@ async function volumenLesen(page) {
   return { verbraucht: zahl(m[1]), gesamt: zahl(m[2]) };
 }
 
+// Erkennt ein Captcha auf der Seite (wird NICHT geloest – dann bekommt der Nutzer eine Push-Nachricht)
+async function captchaDa(page) {
+  if (page.frames().some((f) => /captcha|turnstile|challenge/i.test(f.url()))) return true;
+  return await page.evaluate(() => {
+    const sel = "iframe[src*='captcha' i], [id*='captcha' i], [class*='captcha' i], input[name*='captcha' i], .cf-turnstile";
+    const el = [...document.querySelectorAll(sel)].some((e) => e.offsetParent !== null || e.tagName === "IFRAME");
+    const txt = /captcha|kein roboter|not a robot|zeichen.{0,20}eingeben|sicherheitsabfrage/i.test(document.body.innerText);
+    return el || txt;
+  }).catch(() => false);
+}
+
+async function push(titel, text) {
+  if (!process.env.SIMDE_NTFY) { log("(Keine Push-Nachricht eingerichtet)"); return; }
+  try {
+    const r = await fetch("https://ntfy.sh/" + process.env.SIMDE_NTFY, {
+      method: "POST",
+      headers: { Title: titel, Priority: "high", Tags: "iphone", Click: "https://service.sim.de/mytariff/invoice/showGprsDataUsage" },
+      body: text,
+    });
+    log("Push-Nachricht gesendet (" + r.status + ").");
+  } catch (e) { log("Push fehlgeschlagen: " + e.message); }
+}
+
+async function captchaMelden() {
+  log("sim.de verlangt ein Captcha – Bot bucht NICHT, schickt Push-Nachricht.");
+  await push("sim.de: Bitte selbst nachbuchen", "Dein Datenvolumen ist leer und sim.de will einen Code (Captcha). Tippen, um die 2 GB selbst zu buchen.");
+  return true;
+}
+
 async function nachbuchen(page) {
   let knopf = page.getByRole("link", { name: /^\s*Buchen\s*$/i });
   if ((await knopf.count()) === 0) knopf = page.locator("a.c-button:has-text('Buchen'), button:has-text('Buchen')");
@@ -156,6 +185,7 @@ async function nachbuchen(page) {
   }
   await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(2500);
+  if (await captchaDa(page)) return await captchaMelden();
 
   // Bestaetigungs-Fenster ("2 GB-Highspeed-Datenpaket ... kostenlos" -> "Aktivieren")
   for (const n of [/^\s*Aktivieren\s*$/i, /Jetzt buchen/i, /Buchung bestätigen/i, /^\s*Ja\s*$/i]) {
@@ -172,6 +202,11 @@ async function nachbuchen(page) {
       await page.waitForTimeout(3000);
       break;
     }
+  }
+  if (await captchaDa(page)) return await captchaMelden();
+  if (await sichtbar(page.getByText(/^\s*Aktivieren\s*$/i), 800)) {
+    log("Das Bestaetigungs-Fenster ist noch offen – vermutlich blockiert sim.de die Buchung.");
+    return await captchaMelden();
   }
   try { await page.screenshot({ path: path.join(ORDNER, "letzte_buchung.png"), fullPage: true }); } catch {}
   try {
@@ -222,7 +257,6 @@ async function einDurchlauf(c, testModus) {
     log(`${v.verbraucht.toFixed(2)} von ${v.gesamt.toFixed(2)} GB verbraucht – noch ${rest.toFixed(2)} GB frei.`);
     if (rest < c.schwelle) {
       if (testModus) { log(`TEST: Wuerde jetzt nachbuchen (unter ${c.schwelle} GB). Es wurde NICHT gebucht.`); return false; }
-      if (process.env.SIMDE_NTFY) return await benachrichtigen(page);
       log("Wird knapp – buche 2 GB nach ...");
       return await nachbuchen(page);
     }
