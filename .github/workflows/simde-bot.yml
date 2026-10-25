@@ -24,5 +24,6 @@ jobs:
           SIMDE_USER: ${{ secrets.SIMDE_USER }}
           SIMDE_PASS: ${{ secrets.SIMDE_PASS }}
           SIMDE_NUMMER: ${{ secrets.SIMDE_NUMMER }}
+          SIMDE_NTFY: ${{ secrets.SIMDE_NTFY }}
           HOME: /root
         run: node bot.js --einmal
